@@ -189,6 +189,14 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
       const lr = lintPaymentRequired(parsed.pr, { url: u.href, from: parsed.from });
       f.push(...lr.findings);
       summary = { ...lr.summary, method: pm, challenge_in: parsed.from };
+      // A route that declares its method in the bazaar extension and answers the other one with 404/405 is
+      // doing what it says; only crawlers that ignore the declaration miss it. Downgrade X002 to info then.
+      const declared = String(parsed.pr?.extensions?.bazaar?.info?.input?.method ?? "").toUpperCase();
+      const x2 = f.findIndex((x) => x.id === "X002" && x.severity === "warn");
+      const otherSt = tries.find(([m]) => m !== pm)?.[1]?.r?.status;
+      if (x2 >= 0 && declared === pm && (otherSt === 404 || otherSt === 405)) {
+        f[x2] = F("X002", "info", `Only ${pm} returns a 402 (${pm === "GET" ? "POST" : "GET"} -> ${otherSt}), and the bazaar extension declares method ${pm}, so this is consistent. Probes that ignore the declaration will still miss it.`, otherSt === 404 ? `Optional: answer the other method with 405 and an Allow: ${pm} header, so a probe learns the right method instead of 'not found'.` : undefined);
+      }
       // payTo consistency between GET and POST challenges
       const other = tries.find(([m, x]) => m !== pm && x?.r?.status === 402);
       if (other) {

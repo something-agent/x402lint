@@ -1,10 +1,10 @@
-export const VERSION = "0.1.1";
+export const VERSION = "0.1.2";
 export const REPO = "https://github.com/something-agent/x402lint";
 export const CONTACT = "something+agent@mail.grokbot.com";
 
 export const RULES: [string, string, string][] = [
   ["X001", "error", "endpoint unreachable"],
-  ["X002", "error/warn", "no HTTP 402 for an unpaid request (warn when only one of GET/POST returns it)"],
+  ["X002", "error/warn", "no HTTP 402 for an unpaid request (warn when only one of GET/POST returns it; info when the bazaar extension declares that method and the other answers 404/405)"],
   ["X004", "warn", "unpaid request is redirected"],
   ["X005", "warn", "plain http endpoint"],
   ["X006", "warn", "JSON 402 body served with a non-JSON content-type"],

@@ -124,6 +124,15 @@ describe("lintEndpoint", () => {
     const r = await lintEndpoint(H, {}, { fetchImpl: s.f });
     const f = r.findings.find((x) => x.id === "X002")!; expect(f.severity).toBe("warn"); expect(f.message).toMatch(/Only POST/); expect(f.message).toContain("GET returns 405");
   });
+  it("GET-only 402 whose bazaar extension declares GET: X002 is info, not warn (found linting a real GET API)", async () => {
+    const pr = GOOD_PR({ extensions: { bazaar: { info: { input: { type: "http", method: "GET" } } } } });
+    const s = stubFetch([onlyPaid(() => challenge(pr), { methods: ["GET"] }), (u, i) => u === H && i?.method === "POST" ? new Response("nope", { status: 404 }) : undefined]);
+    const r = await lintEndpoint(H, {}, { fetchImpl: s.f });
+    const f = r.findings.find((x) => x.id === "X002")!; expect(f.severity).toBe("info"); expect(f.message).toMatch(/declares method GET/); expect(f.fix).toMatch(/405/);
+    // without the declaration it stays a warning
+    const s2 = stubFetch([onlyPaid(() => challenge(), { methods: ["GET"] }), (u, i) => u === H && i?.method === "POST" ? new Response("nope", { status: 404 }) : undefined]);
+    expect((await lintEndpoint(H, {}, { fetchImpl: s2.f })).findings.find((x) => x.id === "X002")!.severity).toBe("warn");
+  });
   it("method=POST probes only POST", async () => {
     const s = stubFetch([onlyPaid(() => challenge())]);
     await lintEndpoint(H, { method: "POST" }, { fetchImpl: s.f });

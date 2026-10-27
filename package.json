@@ -1,6 +1,6 @@
 {
   "name": "x402lint",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Free unpaid-path linter for x402 endpoints: checks the 402 challenge, payTo/asset/amount sanity, EIP-712 domain hints, transport and discovery. HTTP API + remote MCP on Cloudflare Workers.",
   "type": "module",
   "scripts": { "dev": "wrangler dev", "test": "vitest run", "typecheck": "tsc -p .", "deploy": "wrangler deploy" },
