@@ -1,0 +1,24 @@
+import { b64Decode, dec } from "./bytes";
+import { Ctx, lintEndpoint, lintPaymentRequired, NOT_TESTED, verdictOf } from "./lint";
+
+export class BadRequest extends Error {}
+
+export const handlers = {
+  async lint_endpoint(a: any, ctx: Ctx) {
+    if (typeof a?.url !== "string" || !a.url) throw new BadRequest("url is required");
+    const m = a.method === undefined ? "auto" : String(a.method).toUpperCase() === "AUTO" ? "auto" : String(a.method).toUpperCase();
+    if (!["auto", "GET", "POST"].includes(m)) throw new BadRequest("method must be auto, GET or POST");
+    return lintEndpoint(a.url, { method: m as any }, ctx);
+  },
+  async lint_payment_required(a: any, _ctx: Ctx) {
+    let pr = a?.payment_required;
+    if (pr === undefined) throw new BadRequest("payment_required is required (object, JSON string, or the base64 PAYMENT-REQUIRED header)");
+    if (typeof pr === "string") {
+      try { pr = JSON.parse(pr); } catch { try { pr = JSON.parse(dec.decode(b64Decode(pr))); } catch { throw new BadRequest("payment_required string is neither JSON nor base64 JSON"); } }
+    }
+    if (!pr || typeof pr !== "object") throw new BadRequest("payment_required must decode to an object");
+    const r = lintPaymentRequired(pr, { url: typeof a.url === "string" ? a.url : undefined, from: "header" });
+    const counts = { error: r.findings.filter((x) => x.severity === "error").length, warn: r.findings.filter((x) => x.severity === "warn").length, info: r.findings.filter((x) => x.severity === "info").length };
+    return { verdict: verdictOf(r.findings), summary: r.summary, counts, findings: r.findings, not_tested: NOT_TESTED };
+  },
+};

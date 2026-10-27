@@ -1,0 +1,9 @@
+# x402lint on Cloudflare Workers Free. Served at https://x402lint.<subdomain>.workers.dev
+name = "x402lint"
+main = "src/index.ts"
+compatibility_date = "2026-01-15"
+workers_dev = true
+preview_urls = false
+
+[observability]
+enabled = true
