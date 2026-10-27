@@ -109,6 +109,10 @@ describe("lintEndpoint", () => {
     const r = await lintEndpoint(H, {}, { fetchImpl: s.f });
     expect(r.verdict).toBe("ok"); expect(r.findings).toEqual([]); expect(s.calls.length).toBe(6);
     expect(r.not_tested.join(" ")).toMatch(/settlement/);
+    // a clean lint must never read as "revenue works" (vina, jarviscooper)
+    expect(r.scope).toBe("unpaid_path_only"); expect(r.verdict_meaning).toMatch(/says nothing about whether payments settle/);
+    expect(r.paid_path_checks.map((x: any) => x.name)).toEqual(["paid-replay", "settle-not-called", "paid-200-cacheable", "paid-response-delivered"]);
+    for (const x of r.paid_path_checks) expect(x.how_to_test.length).toBeGreaterThan(40);
   });
   it("200 without payment is an error", async () => {
     const s = stubFetch([(u, i) => u === H ? json({ data: 1 }) : undefined]);

@@ -123,6 +123,16 @@ export function lintPaymentRequired(pr: any, o: { url?: string; from?: "header" 
 const sevRank: Record<Severity, number> = { error: 0, warn: 1, info: 2 };
 export function verdictOf(f: Finding[]): "fail" | "warn" | "ok" { return f.some((x) => x.severity === "error") ? "fail" : f.some((x) => x.severity === "warn") ? "warn" : "ok"; }
 export const NOT_TESTED = ["settlement (we never pay)", "facilitator verify/settle behaviour", "that the paid response is delivered", "uptime or latency under load"];
+/** What a clean lint must never be read as. */
+export const SCOPE = "unpaid_path_only";
+export const VERDICT_MEANING = "ok means the unpaid 402 challenge and discovery look well-formed to a client or directory. It says nothing about whether payments settle, are bound to the request, or deliver the paid response; see paid_path_checks.";
+/** Seller-side failures only a paid call can show. Named so that a clean unpaid lint can never be mistaken for "revenue works". */
+export const PAID_PATH_CHECKS = [
+  { id: "P001", name: "paid-replay", risk: "The same payment header (X-PAYMENT / PAYMENT-SIGNATURE) is accepted for more than one request: one payment, many paid responses.", how_to_test: "Pay once, then send the identical payment header a second time (ideally with a different body). A second paid 200 is a revenue leak. Key settled payments on (tx_hash, log_index) or the EIP-3009 nonce." },
+  { id: "P002", name: "settle-not-called", risk: "The server asks the facilitator to verify but never calls settle: the paid 200 is served and no funds move.", how_to_test: "After one paid call, look for the USDC Transfer to your payTo on-chain (or check the PAYMENT-RESPONSE tx hash). No transfer means verify-only." },
+  { id: "P003", name: "paid-200-cacheable", risk: "A paid 200 is heuristically cacheable (RFC 9111) unless it says otherwise, so a CDN or shared proxy can hand the paid body to the next unpaid caller.", how_to_test: "Check the paid response for cache-control: private, no-store; then repeat the same request without payment and confirm you get a 402, not the cached body." },
+  { id: "P004", name: "paid-response-delivered", risk: "Settlement succeeds but the handler fails or times out, so the buyer pays and gets an error.", how_to_test: "Make one paid call per route and check the body against your docs; return an explicit not-charged error before settling when the work cannot be done." },
+];
 
 async function tryFetch(url: string, o: Parameters<typeof safeFetch>[1]): Promise<{ r?: Fetched; ms: number; err?: string }> {
   const t = Date.now();
@@ -152,7 +162,7 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
   const reachable = tries.filter(([, x]) => x?.r);
   if (!reachable.length) {
     f.push(F("X001", "error", `Could not fetch the endpoint: ${(g?.err ?? p?.err) ?? "no response"}.`, "Check DNS/TLS and that the Worker/server answers unauthenticated requests."));
-    return { url: u.href, verdict: "fail" as const, probes, findings: f, not_tested: NOT_TESTED };
+    return { url: u.href, verdict: "fail" as const, probes, findings: f, not_tested: NOT_TESTED, scope: SCOPE, verdict_meaning: VERDICT_MEANING, paid_path_checks: PAID_PATH_CHECKS };
   }
   const c402 = reachable.filter(([, x]) => x!.r!.status === 402);
   if (!c402.length) {
@@ -211,5 +221,5 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
   if (!has(llms)) f.push(F("X011", "info", "No /llms.txt: agents reading docs have nothing to learn price, inputs and limits from.", undefined, "/llms.txt"));
   if (!has(oapi)) f.push(F("X012", "info", "No /openapi.json: tools that auto-generate clients cannot see your request schema.", undefined, "/openapi.json"));
   f.sort((a, b) => sevRank[a.severity] - sevRank[b.severity]);
-  return { url: u.href, verdict: verdictOf(f), summary, probes, counts: { error: f.filter((x) => x.severity === "error").length, warn: f.filter((x) => x.severity === "warn").length, info: f.filter((x) => x.severity === "info").length }, findings: f, not_tested: NOT_TESTED };
+  return { url: u.href, verdict: verdictOf(f), summary, probes, counts: { error: f.filter((x) => x.severity === "error").length, warn: f.filter((x) => x.severity === "warn").length, info: f.filter((x) => x.severity === "info").length }, findings: f, not_tested: NOT_TESTED, scope: SCOPE, verdict_meaning: VERDICT_MEANING, paid_path_checks: PAID_PATH_CHECKS };
 }

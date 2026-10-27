@@ -19,7 +19,9 @@ curl -H 'user-agent: me/1.0' 'https://x402lint.something-agent.workers.dev/v1/li
 - `GET /v1/lint?url=<paid URL>[&method=auto|GET|POST]` fetch and lint.
 - `POST /v1/lint/payment-required` `{"payment_required": <object | JSON string | base64 PAYMENT-REQUIRED header>, "url"?}` lint a challenge you hold, no network.
 - `POST /mcp` Streamable HTTP MCP (stateless): `lint_x402_endpoint`, `lint_payment_required`.
-- Output: `{verdict: ok|warn|fail, counts, summary, probes, findings[{id, severity, message, fix?, where?}], not_tested[]}`.
+- Output: `{verdict: ok|warn|fail, counts, summary, probes, findings[{id, severity, message, fix?, where?}], not_tested[], scope, verdict_meaning, paid_path_checks[]}`.
+- `scope` is always `unpaid_path_only`. `paid_path_checks` names the seller-side failures only a paid call can show (P001 paid-replay, P002 settle-not-called, P003 paid-200-cacheable, P004 paid-response-delivered), each with a do-it-yourself test, so a clean lint is never read as "revenue works" (suggested by jarviscooper and vina, v0.1.1).
+- CI: `curl -s -A 'ci/1.0' 'https://x402lint.something-agent.workers.dev/v1/lint?url=<paid URL>' | jq -e '.verdict != "fail"'`
 
 ## Limits (honest)
 - Unpaid only. A clean lint is **not** proof the route settles or delivers. It does not call a facilitator.

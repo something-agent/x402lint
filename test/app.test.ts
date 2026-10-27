@@ -30,6 +30,10 @@ describe("HTTP API", () => {
     const { app } = mk();
     const r = await app.request(B + "/v1/lint?url=" + encodeURIComponent(H), { headers: { "cf-connecting-ip": "2.2.2.2" } });
     const j: any = await r.json(); expect(r.status).toBe(200); expect(j.verdict).toBe("ok"); expect(j.summary.prices).toEqual(["0.01 USDC"]);
+    expect(j.scope).toBe("unpaid_path_only"); expect(j.paid_path_checks[0].id).toBe("P001");
+    const pr: any = await (await post(app, "/v1/lint/payment-required", { payment_required: GOOD_PR() }, "5.5.5.5")).json();
+    expect(pr.scope).toBe("unpaid_path_only"); expect(pr.paid_path_checks.length).toBe(4);
+    expect(await (await app.request(B + "/llms.txt")).text()).toMatch(/jq -e/);
   });
   it("validates input", async () => {
     const { app } = mk();

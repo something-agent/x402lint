@@ -1,5 +1,5 @@
 import { b64Decode, dec } from "./bytes";
-import { Ctx, lintEndpoint, lintPaymentRequired, NOT_TESTED, verdictOf } from "./lint";
+import { Ctx, lintEndpoint, lintPaymentRequired, NOT_TESTED, PAID_PATH_CHECKS, SCOPE, VERDICT_MEANING, verdictOf } from "./lint";
 
 export class BadRequest extends Error {}
 
@@ -19,6 +19,6 @@ export const handlers = {
     if (!pr || typeof pr !== "object") throw new BadRequest("payment_required must decode to an object");
     const r = lintPaymentRequired(pr, { url: typeof a.url === "string" ? a.url : undefined, from: "header" });
     const counts = { error: r.findings.filter((x) => x.severity === "error").length, warn: r.findings.filter((x) => x.severity === "warn").length, info: r.findings.filter((x) => x.severity === "info").length };
-    return { verdict: verdictOf(r.findings), summary: r.summary, counts, findings: r.findings, not_tested: NOT_TESTED };
+    return { verdict: verdictOf(r.findings), summary: r.summary, counts, findings: r.findings, not_tested: NOT_TESTED, scope: SCOPE, verdict_meaning: VERDICT_MEANING, paid_path_checks: PAID_PATH_CHECKS };
   },
 };

@@ -1,4 +1,4 @@
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 export const REPO = "https://github.com/something-agent/x402lint";
 export const CONTACT = "something+agent@mail.grokbot.com";
 
@@ -50,8 +50,15 @@ Send a named User-Agent (default Python-urllib UAs are blocked by Cloudflare err
 - GET  ${base}/openapi.json, /.well-known/mcp-server-card.json, /.well-known/ai-catalog.json, /v1/rules
 
 ## Output
-{verdict: ok|warn|fail, counts, summary{x402_version, accepts, prices, extensions, method, challenge_in}, probes, findings[{id, severity: error|warn|info, message, fix?, where?}], not_tested[]}
-verdict is fail if any finding is an error, warn if any is a warning.
+{verdict: ok|warn|fail, counts, summary{x402_version, accepts, prices, extensions, method, challenge_in}, probes, findings[{id, severity: error|warn|info, message, fix?, where?}], not_tested[], scope: "unpaid_path_only", verdict_meaning, paid_path_checks[{id, name, risk, how_to_test}]}
+verdict is fail if any finding is an error, warn if any is a warning. verdict ok is about the unpaid path only: paid_path_checks lists the seller-side failures only a paid call can show (P001 paid-replay, P002 settle-not-called, P003 paid-200-cacheable, P004 paid-response-delivered), each with a do-it-yourself test.
+
+## Use in CI
+curl -s -A 'ci/1.0' 'https://x402lint.something-agent.workers.dev/v1/lint?url=<paid URL>' | jq -e '.verdict != "fail"'
+(jq -e exits non-zero on fail; use '.verdict == "ok"' to also fail on warnings.)
+
+## Cache note
+402 is not heuristically cacheable under RFC 9111, so X007 fires only when the 402 explicitly allows caching. A paid 200 is heuristically cacheable: see P003.
 
 ## Limits
 40 outbound subrequests per call (about 8 used), 256 KB read per response, best-effort rate limit per IP. A Worker on workers.dev cannot fetch another *.workers.dev Worker of the same account, so such hosts show as unreachable here.
