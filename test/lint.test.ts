@@ -148,11 +148,11 @@ describe("lintEndpoint", () => {
     expect(f.severity).toBe("warn"); expect(f.message).toMatch(/drops to info/);
   });
   it("documented alternate auth (openapi securitySchemes / well-known credits key) is reported as X014 info (toll402)", async () => {
-    const oapi = (u: string) => u === "https://api.example.com/openapi.json" ? json({ openapi: "3.1.0", paths: {}, components: { securitySchemes: { credits: { type: "apiKey", in: "header", name: "x-toll402-key" } } } }) : undefined;
+    const oapi = (u: string) => u === "https://api.example.com/openapi.json" ? json({ openapi: "3.1.0", paths: {}, components: { securitySchemes: { credits: { type: "apiKey", in: "header", name: "x-toll402-key" }, x402: { type: "http", scheme: "x402" } } } }) : undefined;
     const s = stubFetch([onlyPaid(() => challenge()), oapi]);
     const r: any = await lintEndpoint(H, {}, { fetchImpl: s.f });
     const f = r.findings.find((x: any) => x.id === "X014")!;
-    expect(f.severity).toBe("info"); expect(f.message).toMatch(/x-toll402-key/); expect(r.probes.alt_auth[0]).toMatch(/credits \(apiKey: header x-toll402-key\)/);
+    expect(f.severity).toBe("info"); expect(f.message).toMatch(/x-toll402-key/); expect(r.probes.alt_auth).toEqual(["credits (apiKey: header x-toll402-key)"]); // the x402 scheme itself is not "alternate"
     expect(r.verdict).not.toBe("fail");
     const s2 = stubFetch([onlyPaid(() => challenge())]);
     expect((await lintEndpoint(H, {}, { fetchImpl: s2.f })).findings.some((x) => x.id === "X014")).toBe(false);
