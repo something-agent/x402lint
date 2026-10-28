@@ -1,4 +1,4 @@
-export const VERSION = "0.1.2";
+export const VERSION = "0.1.3";
 export const REPO = "https://github.com/something-agent/x402lint";
 export const CONTACT = "something+agent@mail.grokbot.com";
 
@@ -8,7 +8,7 @@ export const RULES: [string, string, string][] = [
   ["X004", "warn", "unpaid request is redirected"],
   ["X005", "warn", "plain http endpoint"],
   ["X006", "warn", "JSON 402 body served with a non-JSON content-type"],
-  ["X007", "warn", "402 response is cacheable"],
+  ["X007", "warn", "402 challenge is cacheable (stale challenge risk)"],
   ["X008", "warn", "challenge slower than 5 s"],
   ["X009", "info", "CORS missing / PAYMENT-REQUIRED not exposed / preflight rejects payment headers"],
   ["X010", "warn/info", "/.well-known/x402 missing or does not mention the live payTo"],
@@ -58,7 +58,7 @@ curl -s -A 'ci/1.0' 'https://x402lint.something-agent.workers.dev/v1/lint?url=<p
 (jq -e exits non-zero on fail; use '.verdict == "ok"' to also fail on warnings.)
 
 ## Cache note
-402 is not heuristically cacheable under RFC 9111, so X007 fires only when the 402 explicitly allows caching. A paid 200 is heuristically cacheable: see P003.
+402 is not heuristically cacheable under RFC 9111, so X007 fires only when the 402 explicitly allows caching (usually framework error-page defaults or an edge rule adding public/max-age). The risk is a stale challenge, not a leaked body: a cached payTo/amount can outlive a rotation. A paid 200 is heuristically cacheable: see P003.
 
 ## Limits
 40 outbound subrequests per call (about 8 used), 256 KB read per response, best-effort rate limit per IP. A Worker on workers.dev cannot fetch another *.workers.dev Worker of the same account, so such hosts show as unreachable here.

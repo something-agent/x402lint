@@ -180,7 +180,7 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
   if (r.status === 402) {
     const ct = (r.headers["content-type"] ?? "").toLowerCase();
     const cc = (r.headers["cache-control"] ?? "").toLowerCase();
-    if (/\b(public|max-age=[1-9])/.test(cc) || /s-maxage=[1-9]/.test(cc)) f.push(F("X007", "warn", `402 response is cacheable (cache-control: ${cc}). A cached challenge can outlive its terms or leak to other clients.`, "Send cache-control: no-store on 402s."));
+    if (/\b(public|max-age=[1-9])/.test(cc) || /s-maxage=[1-9]/.test(cc)) f.push(F("X007", "warn", `402 challenge is cacheable: stale challenge risk (cache-control: ${cc}). A cached 402 whose payTo or amount predates a key or price rotation still looks valid to a client that cannot tell.`, "Send cache-control: no-store on 402s; if an edge must cache, add Vary on the payment header and purge on rotation."));
     const parsed = parsePaymentRequired(r.headers, r.body);
     if (!parsed.pr) f.push(F("X101", "error", parsed.error ?? "Could not parse a PaymentRequired object.", "Return JSON with x402Version and accepts[], and/or the base64 PAYMENT-REQUIRED header."));
     else {

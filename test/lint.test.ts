@@ -149,6 +149,8 @@ describe("lintEndpoint", () => {
       (u, i) => u === H && i?.method !== "OPTIONS" ? new Response(JSON.stringify(pr), { status: 402, headers: { "content-type": "text/html", "cache-control": "public, max-age=300" } }) : undefined]);
     const r = await lintEndpoint("http://api.example.com/data", {}, { fetchImpl: s.f });
     for (const id of ["X004", "X007", "X006", "X103"]) expect(ids(r, "warn")).toContain(id);
+    // jarviscooper: the risk is a stale challenge (payTo/amount outliving a rotation), not a leak
+    expect(JSON.stringify(r.findings.find((x: any) => x.id === "X007"))).toMatch(/stale challenge/);
   });
   it("402 that is not x402", async () => {
     const s = stubFetch([(u, i) => u === H && i?.method !== "OPTIONS" ? new Response("<html>pay me</html>", { status: 402 }) : undefined]);
