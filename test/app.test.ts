@@ -26,6 +26,18 @@ describe("docs & discovery", () => {
 });
 
 describe("HTTP API", () => {
+  it("GET /v1/directories and /v1/lint?directories=1", async () => {
+    const { app } = mk();
+    const r: any = await (await app.request(B + "/v1/directories?url=" + encodeURIComponent(H), { headers: { "cf-connecting-ip": "7.7.7.7" } })).json();
+    const dash = r.directories.find((d: any) => d.directory === "x402dash");
+    expect(dash.status).toBe("ready");
+    const sc = r.directories.find((d: any) => d.directory === "x402scan");
+    expect(sc.status).toBe("not_ready"); // no openapi / well-known in the stub
+    const l: any = await (await app.request(B + "/v1/lint?directories=1&url=" + encodeURIComponent(H), { headers: { "cf-connecting-ip": "7.7.7.8" } })).json();
+    expect(l.directories).toHaveLength(4);
+    const plain: any = await (await app.request(B + "/v1/lint?url=" + encodeURIComponent(H), { headers: { "cf-connecting-ip": "7.7.7.9" } })).json();
+    expect(plain.directories).toBeUndefined();
+  });
   it("GET /v1/lint", async () => {
     const { app } = mk();
     const r = await app.request(B + "/v1/lint?url=" + encodeURIComponent(H), { headers: { "cf-connecting-ip": "2.2.2.2" } });
@@ -68,7 +80,9 @@ describe("MCP", () => {
     const init: any = await (await rpc(app, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } })).json();
     expect(init.result.serverInfo.name).toBe("x402lint");
     const list: any = await (await rpc(app, { jsonrpc: "2.0", id: 2, method: "tools/list" })).json();
-    expect(list.result.tools.map((t: any) => t.name)).toEqual(["lint_x402_endpoint", "lint_payment_required"]);
+    expect(list.result.tools.map((t: any) => t.name)).toEqual(["lint_x402_endpoint", "check_directory_readiness", "lint_payment_required"]);
+    const cd: any = await (await rpc(app, { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "check_directory_readiness", arguments: { url: H } } })).json();
+    expect(cd.result.structuredContent.directories.map((d: any) => d.directory)).toEqual(["x402dash", "x402scan", "the402", "Bazaar (CDP / PayAI)"]);
     const call: any = await (await rpc(app, { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "lint_x402_endpoint", arguments: { url: H } } })).json();
     expect(call.result.isError).toBe(false); expect(call.result.structuredContent.verdict).toBe("ok");
     const call2: any = await (await rpc(app, { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "lint_payment_required", arguments: { payment_required: b64(GOOD_PR()) } } })).json();

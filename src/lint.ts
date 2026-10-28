@@ -3,10 +3,11 @@ import { keccak_256 } from "@noble/hashes/sha3";
 import { b64Decode, base58Decode, dec, enc } from "./bytes";
 import { CAIP2, KNOWN_ASSETS, TESTNETS, V1_NETWORKS } from "./known";
 import { assertPublicUrl, Fetched, safeFetch } from "./safe";
+import { directoryReadiness, DirResult } from "./directories";
 
 export type Severity = "error" | "warn" | "info";
 export interface Finding { id: string; severity: Severity; message: string; fix?: string; where?: string }
-export interface Ctx { fetchImpl?: typeof fetch }
+export interface Ctx { fetchImpl?: typeof fetch; allowPrivate?: boolean }
 
 const F = (id: string, severity: Severity, message: string, fix?: string, where?: string): Finding => ({ id, severity, message, ...(fix ? { fix } : {}), ...(where ? { where } : {}) });
 const bytesToHex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
@@ -139,11 +140,11 @@ async function tryFetch(url: string, o: Parameters<typeof safeFetch>[1]): Promis
   try { return { r: await safeFetch(url, o), ms: Date.now() - t }; } catch (e) { return { ms: Date.now() - t, err: (e as Error).message.slice(0, 160) }; }
 }
 
-export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" | "POST" }, ctx: Ctx = {}) {
-  const u = assertPublicUrl(rawUrl, true);
+export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" | "POST"; directories?: boolean }, ctx: Ctx = {}) {
+  const u = assertPublicUrl(rawUrl, true, ctx.allowPrivate);
   const method = o.method ?? "auto";
   const f: Finding[] = [];
-  const base = { fetchImpl: ctx.fetchImpl, allowHttp: true, maxBytes: 262_144 };
+  const base = { fetchImpl: ctx.fetchImpl, allowHttp: true, maxBytes: 262_144, allowPrivate: ctx.allowPrivate };
   const post = { ...base, method: "POST", body: "{}", headers: { "content-type": "application/json" } };
   const origin = u.origin;
   const [g, p, wk, llms, oapi, pre] = await Promise.all([
@@ -151,7 +152,7 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
     method === "GET" ? Promise.resolve(undefined) : tryFetch(u.href, post),
     tryFetch(origin + "/.well-known/x402", { ...base, maxBytes: 65_536, maxRedirects: 1 }),
     tryFetch(origin + "/llms.txt", { ...base, maxBytes: 4096, maxRedirects: 1 }),
-    tryFetch(origin + "/openapi.json", { ...base, maxBytes: 4096, maxRedirects: 1 }),
+    tryFetch(origin + "/openapi.json", { ...base, maxBytes: o.directories ? 262_144 : 4096, maxRedirects: 1 }),
     tryFetch(u.href, { ...base, method: "OPTIONS", headers: { origin: "https://agent.example", "access-control-request-method": "POST", "access-control-request-headers": "content-type,payment-signature,x-payment" } }),
   ]);
   const probes: Record<string, any> = {};
@@ -162,7 +163,7 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
   const reachable = tries.filter(([, x]) => x?.r);
   if (!reachable.length) {
     f.push(F("X001", "error", `Could not fetch the endpoint: ${(g?.err ?? p?.err) ?? "no response"}.`, "Check DNS/TLS and that the Worker/server answers unauthenticated requests."));
-    return { url: u.href, verdict: "fail" as const, probes, findings: f, not_tested: NOT_TESTED, scope: SCOPE, verdict_meaning: VERDICT_MEANING, paid_path_checks: PAID_PATH_CHECKS };
+    return { url: u.href, verdict: "fail" as const, summary: null as any, probes, findings: f, not_tested: NOT_TESTED, scope: SCOPE, verdict_meaning: VERDICT_MEANING, paid_path_checks: PAID_PATH_CHECKS };
   }
   const c402 = reachable.filter(([, x]) => x!.r!.status === 402);
   if (!c402.length) {
@@ -171,6 +172,10 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
     const other = reachable.find(([m]) => m !== c402[0][0]);
     if (other) f.push(F("X002", "warn", `Only ${c402[0][0]} returns a 402; ${other[0]} returns ${other[1]!.r!.status}. Some directories and probes use ${other[0]}, and will report the route as not an x402 endpoint.`, `Also serve the 402 challenge for ${other[0]} (never settle or serve paid content on it).`));
   }
+  // When both methods return a 402, lint the one the challenge itself declares (bazaar info.input.method),
+  // so a POST route that also answers GET with a lighter 402 is judged on its real challenge.
+  const declaredOf = (x?: { r?: Fetched }) => { try { return String(parsePaymentRequired(x!.r!.headers, x!.r!.body).pr?.extensions?.bazaar?.info?.input?.method ?? "").toUpperCase(); } catch { return ""; } };
+  if (c402.length === 2 && c402[0][0] === "GET" && declaredOf(c402[1][1]) === "POST" && declaredOf(c402[0][1]) !== "GET") c402.reverse();
   const [pm, pick] = c402[0] ?? reachable[0];
   const r = pick!.r!;
   if (r.redirects.length) f.push(F("X004", "warn", `The unpaid request was redirected ${r.redirects.length} time(s) (${r.redirects[0]}). Clients often drop the payment header or turn POST into GET on redirect.`, "Serve the 402 at the canonical URL."));
@@ -202,6 +207,7 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
       if (other) {
         const o2 = parsePaymentRequired(other[1]!.r!.headers, other[1]!.r!.body).pr;
         const key = (x: any) => JSON.stringify((x?.accepts ?? []).map((a: any) => [a.network, String(a.payTo).toLowerCase(), a.amount ?? a.maxAmountRequired, String(a.asset).toLowerCase()]));
+        if (o2 && !!parsed.pr?.extensions?.bazaar !== !!o2?.extensions?.bazaar) f.push(F("X133", "info", `Only the ${parsed.pr?.extensions?.bazaar ? pm : other[0]} 402 carries the bazaar extension; crawlers that probe with ${parsed.pr?.extensions?.bazaar ? other[0] : pm} see no input/output schema.`, "Serve the same extensions on both 402s."));
         if (o2 && key(o2) !== key(parsed.pr)) f.push(F("X132", "warn", `GET and POST return different payment terms (network/payTo/amount/asset). Clients will see different prices depending on method.`));
       }
       // CORS: the 402 itself, then the preflight
@@ -223,7 +229,8 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
         // Fine if other routes use them; stale if they predate a payTo rotation (overwatch-dominion's question).
         const live = new Set((parsed.pr.accepts ?? []).map((a: any) => String(a.payTo ?? "").toLowerCase()));
         const wkAddrs = [...new Set(txt.match(/0x[0-9a-f]{40}(?![0-9a-f])/g) ?? [])];
-        const extra = wkAddrs.filter((x) => !live.has(x));
+        const assets = new Set([...KNOWN_ASSETS.keys(), ...(parsed.pr.accepts ?? []).map((a: any) => String(a.asset ?? "").toLowerCase())]);
+        const extra = wkAddrs.filter((x) => !live.has(x) && !assets.has(x));
         if (!missing.length && extra.length) f.push(F("X010", "info", `/.well-known/x402 also lists ${extra.length} address(es) this route's challenge does not use (${extra.map((m) => m.slice(0, 10) + "…").join(", ")}). Fine if other routes pay to them; stale if they predate a payTo rotation.`, "Remove retired payTo addresses from the well-known file, or say which route each belongs to.", "/.well-known/x402"));
         probes.well_known_x402 = 200;
         probes.well_known_payto = missing.length ? (wkAddrs.length ? "mismatch" : "no_address") : "match";
@@ -236,5 +243,12 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
   if (!has(llms)) f.push(F("X011", "info", "No /llms.txt: agents reading docs have nothing to learn price, inputs and limits from.", undefined, "/llms.txt"));
   if (!has(oapi)) f.push(F("X012", "info", "No /openapi.json: tools that auto-generate clients cannot see your request schema.", undefined, "/openapi.json"));
   f.sort((a, b) => sevRank[a.severity] - sevRank[b.severity]);
-  return { url: u.href, verdict: verdictOf(f), summary, probes, counts: { error: f.filter((x) => x.severity === "error").length, warn: f.filter((x) => x.severity === "warn").length, info: f.filter((x) => x.severity === "info").length }, findings: f, not_tested: NOT_TESTED, scope: SCOPE, verdict_meaning: VERDICT_MEANING, paid_path_checks: PAID_PATH_CHECKS };
+  let directories: DirResult[] | undefined;
+  if (o.directories) {
+    const parsed402 = r.status === 402 ? parsePaymentRequired(r.headers, r.body) : { pr: null, from: null };
+    directories = directoryReadiness({ url: u.href, getStatus: g?.r?.status ?? null, postStatus: p?.r?.status ?? null, pr: parsed402.pr, challengeFrom: parsed402.from,
+      lintErrors: f.filter((x) => x.severity === "error").length,
+      openapiText: has(oapi) && !oapi.r!.truncated ? dec.decode(oapi.r!.body) : null, wellKnownText: wk.r?.status === 200 ? dec.decode(wk.r.body) : null });
+  }
+  return { url: u.href, verdict: verdictOf(f), summary, probes, ...(directories ? { directories } : {}), counts: { error: f.filter((x) => x.severity === "error").length, warn: f.filter((x) => x.severity === "warn").length, info: f.filter((x) => x.severity === "info").length }, findings: f, not_tested: NOT_TESTED, scope: SCOPE, verdict_meaning: VERDICT_MEANING, paid_path_checks: PAID_PATH_CHECKS };
 }

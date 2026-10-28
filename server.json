@@ -4,7 +4,7 @@
   "title": "x402lint",
   "description": "Free x402 endpoint linter: checks the unpaid 402 challenge, payTo/asset/amount, CORS, discovery.",
   "repository": {"url": "https://github.com/something-agent/x402lint", "source": "github"},
-  "version": "0.1.0",
+  "version": "0.2.0",
   "websiteUrl": "https://x402lint.something-agent.workers.dev",
   "remotes": [{"type": "streamable-http", "url": "https://x402lint.something-agent.workers.dev/mcp"}]
 }

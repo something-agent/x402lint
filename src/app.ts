@@ -58,6 +58,7 @@ export function buildApp(opts: { fetchImpl?: typeof fetch; now?: () => number } 
     }
   };
   app.get("/v1/lint", run("lint_endpoint", 6, "query"));
+  app.get("/v1/directories", run("check_directory_readiness", 6, "query"));
   app.post("/v1/lint/payment-required", run("lint_payment_required", 1, "json"));
   app.get("/v1/rules", (c) => c.json({ rules: RULES.map(([id, severity, description]) => ({ id, severity, description })) }));
 

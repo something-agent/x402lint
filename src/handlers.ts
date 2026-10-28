@@ -8,7 +8,11 @@ export const handlers = {
     if (typeof a?.url !== "string" || !a.url) throw new BadRequest("url is required");
     const m = a.method === undefined ? "auto" : String(a.method).toUpperCase() === "AUTO" ? "auto" : String(a.method).toUpperCase();
     if (!["auto", "GET", "POST"].includes(m)) throw new BadRequest("method must be auto, GET or POST");
-    return lintEndpoint(a.url, { method: m as any }, ctx);
+    const dir = a.directories === true || ["1", "true", "yes"].includes(String(a.directories ?? "").toLowerCase());
+    return lintEndpoint(a.url, { method: m as any, directories: dir }, ctx);
+  },
+  async check_directory_readiness(a: any, ctx: Ctx) {
+    return handlers.lint_endpoint({ ...a, directories: true }, ctx);
   },
   async lint_payment_required(a: any, _ctx: Ctx) {
     let pr = a?.payment_required;

@@ -25,11 +25,13 @@ function publicV4(p: number[]): boolean {
 }
 
 /** Throws BlockedTarget unless the URL is a plain public https (or, if allowHttp, http) URL on a default port. */
-export function assertPublicUrl(raw: string, allowHttp = false): URL {
+export function assertPublicUrl(raw: string, allowHttp = false, allowPrivate = false): URL {
   let u: URL;
   try { u = new URL(raw); } catch { throw new BlockedTarget("not a valid absolute URL"); }
   const scheme = u.protocol.replace(":", "");
   if (scheme !== "https" && !(allowHttp && scheme === "http")) throw new BlockedTarget(`scheme '${scheme}' not allowed (https only${allowHttp ? " or http" : ""})`);
+  // allowPrivate is for a seller testing their own staging server from their own machine (CLI only, never the hosted API).
+  if (allowPrivate) return u;
   if (u.username || u.password) throw new BlockedTarget("credentials in URL are not allowed");
   if (u.port && !((scheme === "https" && u.port === "443") || (scheme === "http" && u.port === "80"))) throw new BlockedTarget("non-default ports are not allowed");
   const host = u.hostname.toLowerCase().replace(/\.$/, "");
@@ -44,10 +46,10 @@ export function assertPublicUrl(raw: string, allowHttp = false): URL {
 
 export interface Fetched { url: string; status: number; headers: Record<string, string>; body: Uint8Array; truncated: boolean; redirects: string[] }
 
-export async function safeFetch(raw: string, o: { method?: string; body?: string; headers?: Record<string, string>; maxBytes?: number; timeoutMs?: number; maxRedirects?: number; allowHttp?: boolean; fetchImpl?: typeof fetch } = {}): Promise<Fetched> {
+export async function safeFetch(raw: string, o: { method?: string; body?: string; headers?: Record<string, string>; maxBytes?: number; timeoutMs?: number; maxRedirects?: number; allowHttp?: boolean; allowPrivate?: boolean; fetchImpl?: typeof fetch } = {}): Promise<Fetched> {
   const f = o.fetchImpl ?? fetch;
   const max = o.maxBytes ?? 262_144;
-  let url = assertPublicUrl(raw, o.allowHttp).href;
+  let url = assertPublicUrl(raw, o.allowHttp, o.allowPrivate).href;
   const redirects: string[] = [];
   for (let hop = 0; hop <= (o.maxRedirects ?? 3); hop++) {
     const r = await f(url, {
@@ -58,7 +60,7 @@ export async function safeFetch(raw: string, o: { method?: string; body?: string
       const loc = r.headers.get("location");
       try { await r.body?.cancel(); } catch { /* ignore */ }
       if (!loc) throw new Error("redirect without location");
-      url = assertPublicUrl(new URL(loc, url).href, o.allowHttp).href;
+      url = assertPublicUrl(new URL(loc, url).href, o.allowHttp, o.allowPrivate).href;
       redirects.push(url);
       continue;
     }
