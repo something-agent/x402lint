@@ -207,6 +207,12 @@ describe("lintEndpoint", () => {
     const r: any = await lintEndpoint(H, {}, { fetchImpl: s.f });
     expect(r.probes.well_known_payto).toBe("no_address"); expect(ids(r, "warn")).not.toContain("X010"); expect(ids(r, "info")).toContain("X010");
   });
+  it("non-EVM (Solana) payTo with i/l/o after lowercasing still matches the well-known file (quantx402 regression)", async () => {
+    const sol = "AujwcY6DgrLiPoKn7sbVQ2kT8xHqfJ3mZe4RtUoWbLa9";
+    const s = stubFetch([onlyPaid(() => challenge(acc({ payTo: sol }))), (u) => u.endsWith("/.well-known/x402") ? json({ payTo: sol }) : undefined]);
+    const r: any = await lintEndpoint(H, {}, { fetchImpl: s.f });
+    expect(r.probes.well_known_payto).toBe("match"); expect(ids(r, "warn")).not.toContain("X010");
+  });
   it("wellKnownAddresses: JSON values and plain text", () => {
     expect(wellKnownAddresses(JSON.stringify({ payTo: "0xAb62452b4b019bC4402BFfCca6C706d16d72A7Bf", url: "https://x/?a=0x1111111111111111111111111111111111111111" }))).toEqual(["0xab62452b4b019bc4402bffcca6c706d16d72a7bf"]);
     expect(wellKnownAddresses("payTo: 0x2222222222222222222222222222222222222222\nsig 0x" + "3".repeat(130) + "\nhttps://x/?p=0x4444444444444444444444444444444444444444")).toEqual(["0x2222222222222222222222222222222222222222"]);

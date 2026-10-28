@@ -252,7 +252,7 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
       // well-known cross-check
       if (wk.r?.status === 200) {
         const txt = dec.decode(wk.r.body).toLowerCase();
-        const missing = [...new Set((parsed.pr.accepts ?? []).map((a: any) => String(a.payTo ?? "").toLowerCase()).filter(Boolean))].filter((x: any) => !wellKnownAddresses(txt).includes(x) && !(/^[1-9a-hj-np-z]{32,44}$/i.test(x) && txt.includes(x)));
+        const missing = [...new Set((parsed.pr.accepts ?? []).map((a: any) => String(a.payTo ?? "").toLowerCase()).filter(Boolean))].filter((x: any) => !wellKnownAddresses(txt).includes(x) && !(!/^0x[0-9a-f]{40}$/.test(x) && txt.includes(x)));
         // Only standalone addresses count as payTo candidates: a JSON string value that IS an address (or, for non-JSON
         // files, a 40-hex run with no hex on either side). Not a pool address inside a resource URL's query string, and not
         // the first 40 hex chars of a 65-byte signature in ownershipProofs. (False "mismatch" on AcePilot and ottoai, 2026-10-28.)
