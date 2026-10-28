@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eip55, lintEndpoint, lintPaymentRequired, parsePaymentRequired } from "../src/lint";
+import { eip55, wellKnownAddresses, lintEndpoint, lintPaymentRequired, parsePaymentRequired } from "../src/lint";
 import { b64, fixture, GOOD_PR, json, stubFetch, USDC } from "./helpers";
 
 const ids = (r: { findings: any[] }, sev?: string) => r.findings.filter((f) => !sev || f.severity === sev).map((f) => f.id);
@@ -199,6 +199,17 @@ describe("lintEndpoint", () => {
     const s = stubFetch([onlyPaid(() => challenge()), (u) => u.endsWith("/.well-known/x402") ? json({ service: "x", paid_endpoints: ["/data"] }) : undefined]);
     const r = await lintEndpoint(H, {}, { fetchImpl: s.f });
     expect(ids(r, "warn")).not.toContain("X010"); expect(ids(r, "info")).toContain("X010");
+  });
+  it("addresses inside resource URLs or signatures are not payTo candidates (AcePilot, ottoai false mismatch)", async () => {
+    const wk = { version: 1, resources: ["https://h.example/v1/q1?pool=0x422df9aa896e883c9cdcbad309c0785b7364a1cf&window_h=168"],
+      ownershipProofs: ["0x143123422fc25e357261578cb01dad50bcdcf8f9507f18a9ee9e7c6e27dfa7ce79a46bdc0331ab8725ff3b38e04b0faa54d62a0b9ff10decd72039a65604acc01c"] };
+    const s = stubFetch([onlyPaid(() => challenge()), (u) => u.endsWith("/.well-known/x402") ? json(wk) : undefined]);
+    const r: any = await lintEndpoint(H, {}, { fetchImpl: s.f });
+    expect(r.probes.well_known_payto).toBe("no_address"); expect(ids(r, "warn")).not.toContain("X010"); expect(ids(r, "info")).toContain("X010");
+  });
+  it("wellKnownAddresses: JSON values and plain text", () => {
+    expect(wellKnownAddresses(JSON.stringify({ payTo: "0xAb62452b4b019bC4402BFfCca6C706d16d72A7Bf", url: "https://x/?a=0x1111111111111111111111111111111111111111" }))).toEqual(["0xab62452b4b019bc4402bffcca6c706d16d72a7bf"]);
+    expect(wellKnownAddresses("payTo: 0x2222222222222222222222222222222222222222\nsig 0x" + "3".repeat(130) + "\nhttps://x/?p=0x4444444444444444444444444444444444444444")).toEqual(["0x2222222222222222222222222222222222222222"]);
   });
   it("GET and POST disagreeing on terms", async () => {
     const s = stubFetch([(u, i) => u === H && i?.method === "POST" ? challenge(acc({ amount: "20000" })) : u === H && i?.method === "GET" ? challenge() : undefined]);
