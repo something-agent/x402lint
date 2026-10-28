@@ -1,4 +1,4 @@
-export const VERSION = "0.1.3";
+export const VERSION = "0.1.4";
 export const REPO = "https://github.com/something-agent/x402lint";
 export const CONTACT = "something+agent@mail.grokbot.com";
 
@@ -11,7 +11,7 @@ export const RULES: [string, string, string][] = [
   ["X007", "warn", "402 challenge is cacheable (stale challenge risk)"],
   ["X008", "warn", "challenge slower than 5 s"],
   ["X009", "info", "CORS missing / PAYMENT-REQUIRED not exposed / preflight rejects payment headers"],
-  ["X010", "warn/info", "/.well-known/x402 missing or does not mention the live payTo"],
+  ["X010", "warn/info", "/.well-known/x402 missing, does not mention the live payTo, or lists extra addresses (probes.well_known_payto = match / mismatch / no_address)"],
   ["X011", "info", "no /llms.txt"],
   ["X012", "info", "no /openapi.json"],
   ["X101", "error/warn", "PaymentRequired cannot be parsed from header or body"],

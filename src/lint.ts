@@ -219,7 +219,14 @@ export async function lintEndpoint(rawUrl: string, o: { method?: "auto" | "GET" 
         const missing = [...new Set((parsed.pr.accepts ?? []).map((a: any) => String(a.payTo ?? "").toLowerCase()).filter(Boolean))].filter((x: any) => !txt.includes(x));
         if (missing.length && !/0x[0-9a-f]{40}/.test(txt)) f.push(F("X010", "info", "/.well-known/x402 exists but lists no payTo address, so it cannot be cross-checked against the live challenge.", undefined, "/.well-known/x402"));
         else if (missing.length) f.push(F("X010", "warn", `/.well-known/x402 exists but does not mention payTo ${missing.map((m: any) => m.slice(0, 10) + "…").join(", ")} from the live challenge.`, "Keep the well-known file and the live challenge in sync.", "/.well-known/x402"));
+        // The reverse direction: addresses in the well-known file that this route's challenge does not use.
+        // Fine if other routes use them; stale if they predate a payTo rotation (overwatch-dominion's question).
+        const live = new Set((parsed.pr.accepts ?? []).map((a: any) => String(a.payTo ?? "").toLowerCase()));
+        const wkAddrs = [...new Set(txt.match(/0x[0-9a-f]{40}(?![0-9a-f])/g) ?? [])];
+        const extra = wkAddrs.filter((x) => !live.has(x));
+        if (!missing.length && extra.length) f.push(F("X010", "info", `/.well-known/x402 also lists ${extra.length} address(es) this route's challenge does not use (${extra.map((m) => m.slice(0, 10) + "…").join(", ")}). Fine if other routes pay to them; stale if they predate a payTo rotation.`, "Remove retired payTo addresses from the well-known file, or say which route each belongs to.", "/.well-known/x402"));
         probes.well_known_x402 = 200;
+        probes.well_known_payto = missing.length ? (wkAddrs.length ? "mismatch" : "no_address") : "match";
       } else f.push(F("X010", "info", "No /.well-known/x402 (optional): a second place for agents to cross-check your payTo.", undefined, "/.well-known/x402"));
     }
   }

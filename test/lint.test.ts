@@ -162,6 +162,15 @@ describe("lintEndpoint", () => {
     const r = await lintEndpoint(H, {}, { fetchImpl: s.f });
     expect(ids(r, "warn")).toContain("X010"); expect(ids(r, "info")).toContain("X009");
   });
+  it("well-known payTo match is recorded; extra addresses are info (overwatch-dominion)", async () => {
+    const pt = (GOOD_PR() as any).accepts[0].payTo;
+    const s1 = stubFetch([onlyPaid(() => challenge()), (u) => u.endsWith("/.well-known/x402") ? json({ payTo: pt }) : undefined]);
+    const r1: any = await lintEndpoint(H, {}, { fetchImpl: s1.f });
+    expect(r1.probes.well_known_payto).toBe("match"); expect(ids(r1, "warn")).not.toContain("X010"); expect(ids(r1, "info")).not.toContain("X010");
+    const s2 = stubFetch([onlyPaid(() => challenge()), (u) => u.endsWith("/.well-known/x402") ? json({ payTo: [pt, "0x1111111111111111111111111111111111111111"] }) : undefined]);
+    const r2: any = await lintEndpoint(H, {}, { fetchImpl: s2.f });
+    expect(r2.probes.well_known_payto).toBe("match"); expect(ids(r2, "warn")).not.toContain("X010"); expect(ids(r2, "info")).toContain("X010");
+  });
   it("well-known without any address is only info", async () => {
     const s = stubFetch([onlyPaid(() => challenge()), (u) => u.endsWith("/.well-known/x402") ? json({ service: "x", paid_endpoints: ["/data"] }) : undefined]);
     const r = await lintEndpoint(H, {}, { fetchImpl: s.f });
