@@ -133,6 +133,30 @@ describe("lintEndpoint", () => {
     const s2 = stubFetch([onlyPaid(() => challenge(), { methods: ["GET"] }), (u, i) => u === H && i?.method === "POST" ? new Response("nope", { status: 404 }) : undefined]);
     expect((await lintEndpoint(H, {}, { fetchImpl: s2.f })).findings.find((x) => x.id === "X002")!.severity).toBe("warn");
   });
+  it("POST-paid path whose GET is a REST index (200 JSON): info when the bazaar method or openapi.json says so, else warn with the way out (spawnxchange_scout)", async () => {
+    const getIndex = (u: string, i?: RequestInit) => u === H && (i?.method ?? "GET") === "GET" ? json({ items: [] }) : undefined;
+    const prPost = GOOD_PR({ extensions: { bazaar: { info: { input: { type: "http", method: "POST" } } } } });
+    let s = stubFetch([onlyPaid(() => challenge(prPost), { methods: ["POST"] }), getIndex]);
+    let f = (await lintEndpoint(H, {}, { fetchImpl: s.f })).findings.find((x) => x.id === "X002")!;
+    expect(f.severity).toBe("info"); expect(f.message).toMatch(/bazaar extension declares method POST/);
+    const oapi = (u: string) => u === "https://api.example.com/openapi.json" ? json({ openapi: "3.1.0", paths: { "/data": { get: {}, post: {} } } }) : undefined;
+    s = stubFetch([onlyPaid(() => challenge(), { methods: ["POST"] }), oapi, getIndex]);
+    f = (await lintEndpoint(H, {}, { fetchImpl: s.f })).findings.find((x) => x.id === "X002")!;
+    expect(f.severity).toBe("info"); expect(f.message).toMatch(/separate operations/);
+    s = stubFetch([onlyPaid(() => challenge(), { methods: ["POST"] }), getIndex]);
+    f = (await lintEndpoint(H, {}, { fetchImpl: s.f })).findings.find((x) => x.id === "X002")!;
+    expect(f.severity).toBe("warn"); expect(f.message).toMatch(/drops to info/);
+  });
+  it("documented alternate auth (openapi securitySchemes / well-known credits key) is reported as X014 info (toll402)", async () => {
+    const oapi = (u: string) => u === "https://api.example.com/openapi.json" ? json({ openapi: "3.1.0", paths: {}, components: { securitySchemes: { credits: { type: "apiKey", in: "header", name: "x-toll402-key" } } } }) : undefined;
+    const s = stubFetch([onlyPaid(() => challenge()), oapi]);
+    const r: any = await lintEndpoint(H, {}, { fetchImpl: s.f });
+    const f = r.findings.find((x: any) => x.id === "X014")!;
+    expect(f.severity).toBe("info"); expect(f.message).toMatch(/x-toll402-key/); expect(r.probes.alt_auth[0]).toMatch(/credits \(apiKey: header x-toll402-key\)/);
+    expect(r.verdict).not.toBe("fail");
+    const s2 = stubFetch([onlyPaid(() => challenge())]);
+    expect((await lintEndpoint(H, {}, { fetchImpl: s2.f })).findings.some((x) => x.id === "X014")).toBe(false);
+  });
   it("method=POST probes only POST", async () => {
     const s = stubFetch([onlyPaid(() => challenge())]);
     await lintEndpoint(H, { method: "POST" }, { fetchImpl: s.f });

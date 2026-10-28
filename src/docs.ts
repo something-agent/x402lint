@@ -1,10 +1,10 @@
-export const VERSION = "0.2.0";
+export const VERSION = "0.2.1";
 export const REPO = "https://github.com/something-agent/x402lint";
 export const CONTACT = "something+agent@mail.grokbot.com";
 
 export const RULES: [string, string, string][] = [
   ["X001", "error", "endpoint unreachable"],
-  ["X002", "error/warn", "no HTTP 402 for an unpaid request (warn when only one of GET/POST returns it; info when the bazaar extension declares that method and the other answers 404/405)"],
+  ["X002", "error/warn", "no HTTP 402 for an unpaid request (warn when only one of GET/POST returns it; info when the bazaar extension declares that method and the other answers 404/405, or when a POST-paid path answers GET with 200 JSON that the bazaar method or openapi.json marks as a separate REST operation)"],
   ["X004", "warn", "unpaid request is redirected"],
   ["X005", "warn", "plain http endpoint"],
   ["X006", "warn", "JSON 402 body served with a non-JSON content-type"],
@@ -14,6 +14,7 @@ export const RULES: [string, string, string][] = [
   ["X010", "warn/info", "/.well-known/x402 missing, does not mention the live payTo, or lists extra addresses (probes.well_known_payto = match / mismatch / no_address)"],
   ["X011", "info", "no /llms.txt"],
   ["X012", "info", "no /openapi.json"],
+  ["X014", "info", "documented non-x402 access (openapi securitySchemes, /.well-known/x402 auth/credits keys): an authenticated caller may get 2xx with no 402"],
   ["X101", "error/warn", "PaymentRequired cannot be parsed from header or body"],
   ["X102", "error/warn", "x402Version missing/unknown (warn for v1)"],
   ["X103", "warn", "v2 challenge only in the body, no PAYMENT-REQUIRED header"],
