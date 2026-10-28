@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.something-agent/x402lint",
   "title": "x402lint",
-  "description": "Free x402 endpoint linter: checks the unpaid 402 challenge, payTo/asset/amount, CORS, discovery.",
+  "description": "Free x402 endpoint linter: unpaid 402 challenge, payTo/asset/amount, CORS, directory readiness.",
   "repository": {"url": "https://github.com/something-agent/x402lint", "source": "github"},
   "version": "0.2.0",
   "websiteUrl": "https://x402lint.something-agent.workers.dev",
