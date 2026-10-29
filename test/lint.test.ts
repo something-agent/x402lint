@@ -198,6 +198,15 @@ describe("lintEndpoint", () => {
     expect(r1.probes.well_known_pay_tos).toEqual([pt.toLowerCase()]);
     expect(r2.probes.well_known_pay_tos).toEqual([pt.toLowerCase(), "0x1111111111111111111111111111111111111111"]);
   });
+  it("records why the well-known file was not read: 404 = absent, 5xx = unreadable (cinnabar, 0.2.5)", async () => {
+    const s1 = stubFetch([onlyPaid(() => challenge()), (u) => u.endsWith("/.well-known/x402") ? new Response("nope", { status: 404 }) : undefined]);
+    const r1: any = await lintEndpoint(H, {}, { fetchImpl: s1.f });
+    expect(r1.probes.well_known_x402).toBe(404); expect(r1.probes.well_known_pay_tos).toBeUndefined();
+    const s2 = stubFetch([onlyPaid(() => challenge()), (u) => u.endsWith("/.well-known/x402") ? new Response("down", { status: 503 }) : undefined]);
+    const r2: any = await lintEndpoint(H, {}, { fetchImpl: s2.f });
+    expect(r2.probes.well_known_x402).toBe(503);
+    expect(r2.findings.some((x: any) => x.id === "X010" && /could not be read \(HTTP 503\)/.test(x.message))).toBe(true);
+  });
   it("well-known without any address is only info", async () => {
     const s = stubFetch([onlyPaid(() => challenge()), (u) => u.endsWith("/.well-known/x402") ? json({ service: "x", paid_endpoints: ["/data"] }) : undefined]);
     const r = await lintEndpoint(H, {}, { fetchImpl: s.f });

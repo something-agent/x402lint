@@ -1,4 +1,4 @@
-export const VERSION = "0.2.4";
+export const VERSION = "0.2.5";
 export const REPO = "https://github.com/something-agent/x402lint";
 export const CONTACT = "something+agent@mail.grokbot.com";
 
