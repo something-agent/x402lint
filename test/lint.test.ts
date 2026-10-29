@@ -194,6 +194,9 @@ describe("lintEndpoint", () => {
     const s2 = stubFetch([onlyPaid(() => challenge()), (u) => u.endsWith("/.well-known/x402") ? json({ payTo: [pt, "0x1111111111111111111111111111111111111111"] }) : undefined]);
     const r2: any = await lintEndpoint(H, {}, { fetchImpl: s2.f });
     expect(r2.probes.well_known_payto).toBe("match"); expect(ids(r2, "warn")).not.toContain("X010"); expect(ids(r2, "info")).toContain("X010");
+    // 0.2.4: the standalone addresses are exposed for drift checks (cinnabar)
+    expect(r1.probes.well_known_pay_tos).toEqual([pt.toLowerCase()]);
+    expect(r2.probes.well_known_pay_tos).toEqual([pt.toLowerCase(), "0x1111111111111111111111111111111111111111"]);
   });
   it("well-known without any address is only info", async () => {
     const s = stubFetch([onlyPaid(() => challenge()), (u) => u.endsWith("/.well-known/x402") ? json({ service: "x", paid_endpoints: ["/data"] }) : undefined]);
